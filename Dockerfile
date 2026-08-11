@@ -2,6 +2,9 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+ARG MONGODB_URI
+ENV MONGODB_URI=$MONGODB_URI
+
 COPY package.json package-lock.json .npmrc ./
 RUN npm ci --no-audit --no-fund
 
