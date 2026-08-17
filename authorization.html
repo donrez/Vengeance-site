@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Authorization — Vengeance</title>
+  <link rel="icon" href="/favicon.ico"/>
+  <link rel="stylesheet" href="/css/vesence.css?v=8"/>
+  <link rel="stylesheet" href="/css/auth.css?v=1"/>
+</head>
+<body data-page="authorization" class="geist_a71539c9-module__T19VSG__variable geist_mono_8d43a2aa-module__8Li5zG__variable antialiased bg-black" style="--accent-color:#a164dd;--color-pinkpink:#ffffff;--color-pinkpinkDark:#ffffff;--text-color:color-mix(in srgb, #a164dd 50%, white);--text-color-acc:#a164dd;--color-user-login:color-mix(in srgb, #a164dd 20%, white);--color-user-uid:color-mix(in srgb, #a164dd 60%, white);--color-home-title:color-mix(in srgb, #a164dd 40%, white);--color-home-text:color-mix(in srgb, #a164dd 40%, white);--color-welcome:color-mix(in srgb, #a164dd 45%, white);--color-takealook:color-mix(in srgb, #a164dd 10%, white);--color-tom-and-jerry:color-mix(in srgb, #a164dd 30%, rgba(255, 255, 255, 0.25));--color-all-rights:color-mix(in srgb, #a164dd 40%, rgba(255, 255, 255, 0.25))">
+<div class="fixed inset-0 z-[-1] overflow-hidden"><div style="background-color:color-mix(in srgb, #d40f0f 3.5%, rgb(7, 7, 7));position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:-1;pointer-events:none"><div style="position:absolute;top:0;left:0;width:100%;height:100%;z-index:1"><canvas class="noise-overlay" style="image-rendering:pixelated"></canvas></div></div></div>
+
+<header class="auth-topbar">
+  <a href="/" class="auth-brand">Vengeance</a>
+  <div class="auth-topbar-right">
+    <a href="/" class="auth-home-link" data-i18n="nav.home">Home</a>
+    <div class="auth-langs">
+      <button type="button" data-lang="en">EN</button>
+      <button type="button" data-lang="pl">PL</button>
+      <button type="button" data-lang="ru">RU</button>
+    </div>
+  </div>
+</header>
+
+<main class="auth-wrap">
+  <div class="auth-card">
+    <h1 data-i18n="auth.title">Authorization</h1>
+    <p class="auth-sub">Vengeance</p>
+    <div class="auth-error"></div>
+    <form id="auth-form" novalidate>
+      <div class="field">
+        <label data-i18n="reg.placeholder.username">Username</label>
+        <input id="auth-username" type="text" autocomplete="username"/>
+      </div>
+      <div class="field">
+        <label data-i18n="reg.placeholder.password">Password</label>
+        <input id="auth-password" type="password" autocomplete="current-password"/>
+      </div>
+      <button type="submit" class="btn-primary" data-i18n="auth.continue">Continue</button>
+    </form>
+    <p class="auth-switch"><span data-i18n="reg.haveAccount">Already have an account?</span> <a href="/registration" data-i18n="reg.submit">Register</a></p>
+  </div>
+</main>
+
+<script src="/js/dict.js?v=8"></script>
+<script src="/js/hwid.js?v=1"></script>
+<script src="/js/auth.js?v=1"></script>
+</body>
+</html>

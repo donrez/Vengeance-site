@@ -1,0 +1,445 @@
+/* ===== auth pages ===== */
+
+.auth-topbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.auth-brand {
+  font-size: 17px;
+  font-weight: 600;
+  color: #fff;
+  letter-spacing: 0.3px;
+  text-decoration: none;
+}
+
+.auth-brand span {
+  color: var(--text-color-acc);
+}
+
+.auth-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.auth-home-link {
+  color: rgba(168, 168, 168, 0.44);
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: color 0.3s;
+}
+
+.auth-home-link:hover {
+  color: #b5b3b3;
+}
+
+.auth-langs {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.auth-langs button {
+  padding: 5px 11px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.3s, color 0.3s;
+}
+
+.auth-langs button:hover {
+  color: #fff;
+}
+
+.auth-langs button.active {
+  background: var(--accent-color);
+  color: #fff;
+}
+
+.auth-wrap {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 96px 24px 40px;
+  position: relative;
+  z-index: 10;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 400px;
+  border-radius: 12px;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(0, 0, 0, 0.4);
+  padding: 28px 24px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+}
+
+.auth-card h1 {
+  margin: 0 0 4px;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--color-welcome);
+  text-align: center;
+}
+
+.auth-card .auth-sub {
+  margin: 0 0 20px;
+  font-size: 13.5px;
+  color: rgba(168, 168, 168, 0.6);
+  text-align: center;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.field label {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: rgba(168, 168, 168, 0.7);
+}
+
+.field input {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  color: #fff;
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.3s;
+}
+
+.field input:focus {
+  border-color: var(--accent-color);
+}
+
+.auth-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 16px;
+  font-size: 12.5px;
+  color: rgba(168, 168, 168, 0.7);
+  cursor: pointer;
+}
+
+.auth-check input {
+  margin-top: 2px;
+  accent-color: var(--accent-color);
+}
+
+.btn-primary {
+  width: 100%;
+  padding: 11px 16px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--accent-color);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity 0.3s;
+}
+
+.btn-primary:hover {
+  opacity: 0.8;
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.auth-switch {
+  margin-top: 16px;
+  text-align: center;
+  font-size: 13px;
+  color: rgba(168, 168, 168, 0.6);
+}
+
+.auth-switch a {
+  color: var(--text-color-acc);
+  text-decoration: none;
+}
+
+.auth-error {
+  display: none;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(255, 60, 60, 0.12);
+  border: 1px solid rgba(255, 60, 60, 0.25);
+  color: #ff8a8a;
+  font-size: 13px;
+  text-align: center;
+}
+
+.auth-error.show {
+  display: block;
+}
+
+.auth-ok {
+  display: none;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(80, 200, 120, 0.12);
+  border: 1px solid rgba(80, 200, 120, 0.25);
+  color: #8affb0;
+  font-size: 13px;
+  text-align: center;
+}
+
+.auth-ok.show {
+  display: block;
+}
+
+.profile-card .profile-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 14px;
+}
+
+.profile-card .profile-row span:first-child {
+  color: rgba(168, 168, 168, 0.6);
+}
+
+.profile-card .profile-row span:last-child {
+  color: #fff;
+  text-align: right;
+  word-break: break-all;
+}
+
+.profile-card .profile-row .badge {
+  color: var(--accent-color);
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 12px;
+}
+
+.btn-ghost {
+  width: 100%;
+  margin-top: 10px;
+  padding: 10px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.3s, color 0.3s;
+}
+
+.btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  word-break: break-all;
+}
+
+/* ===== admin panel ===== */
+
+.admin-panel {
+  width: 100%;
+  max-width: 860px;
+  border-radius: 12px;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(0, 0, 0, 0.4);
+  padding: 24px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+}
+
+.admin-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding-bottom: 12px;
+}
+
+.admin-tabs button {
+  padding: 8px 16px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(168, 168, 168, 0.6);
+  font-size: 14px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.3s, color 0.3s;
+}
+
+.admin-tabs button:hover {
+  color: #fff;
+}
+
+.admin-tabs button.active {
+  background: var(--accent-color);
+  color: #fff;
+}
+
+.admin-tabs button:last-child {
+  margin-left: auto;
+  color: rgba(255, 90, 90, 0.7);
+}
+
+.admin-tabs button:last-child:hover {
+  color: #ff8a8a;
+  background: rgba(255, 60, 60, 0.1);
+}
+
+.admin-toolbar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.admin-toolbar input {
+  width: 90px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  color: #fff;
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+}
+
+.admin-toolbar .btn-primary,
+.admin-toolbar .btn-ghost {
+  width: auto;
+  margin: 0;
+}
+
+.admin-table-wrap {
+  overflow-x: auto;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.admin-table th {
+  text-align: left;
+  padding: 10px 12px;
+  color: rgba(168, 168, 168, 0.6);
+  font-weight: 500;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  background: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  white-space: nowrap;
+}
+
+.admin-table td {
+  padding: 10px 12px;
+  color: rgba(255, 255, 255, 0.85);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  word-break: break-all;
+}
+
+.admin-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.admin-table .mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12.5px;
+}
+
+.admin-table .mono.used {
+  color: rgba(168, 168, 168, 0.45);
+  text-decoration: line-through;
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+.free-badge {
+  background: rgba(80, 200, 120, 0.15);
+  color: #8affb0;
+  border: 1px solid rgba(80, 200, 120, 0.3);
+}
+
+.used-badge {
+  background: rgba(255, 120, 60, 0.15);
+  color: #ffb08a;
+  border: 1px solid rgba(255, 120, 60, 0.3);
+}
+
+.revoke-btn,
+.reset-btn {
+  padding: 5px 12px;
+  border: 1px solid rgba(255, 60, 60, 0.3);
+  border-radius: 6px;
+  background: rgba(255, 60, 60, 0.1);
+  color: #ff8a8a;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.3s;
+  white-space: nowrap;
+}
+
+.revoke-btn:hover,
+.reset-btn:hover {
+  background: rgba(255, 60, 60, 0.25);
+}

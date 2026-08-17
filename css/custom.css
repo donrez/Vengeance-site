@@ -1,0 +1,60 @@
+/* ===== page ===== */
+
+html {
+  scroll-padding-top: 90px;
+}
+
+/* ===== blur-in title words ===== */
+
+.title-word {
+  display: inline-block;
+  margin-right: 0.25em;
+  will-change: transform, filter, opacity;
+  animation: title-in 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.title-word:last-child {
+  margin-right: 0;
+}
+
+@keyframes title-in {
+  from {
+    filter: blur(10px);
+    opacity: 0;
+    transform: translateY(-50px);
+  }
+  to {
+    filter: blur(0);
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ===== reveal on scroll ===== */
+
+.revealed {
+  opacity: 1 !important;
+  transform: translateY(0) !important;
+}
+
+/* ===== light pillars ===== */
+
+.light-pillar {
+  position: absolute;
+  top: -20%;
+  bottom: -20%;
+  width: 34vmax;
+  border-radius: 50%;
+  filter: blur(80px);
+  background: radial-gradient(ellipse at center, rgba(161, 100, 221, 0.35), transparent 70%);
+  animation: pillar-drift 14s ease-in-out infinite alternate;
+}
+
+.light-pillar:nth-child(1) { left: 4%; }
+.light-pillar:nth-child(2) { left: 50%; margin-left: -17vmax; animation-delay: -5s; opacity: 0.7; }
+.light-pillar:nth-child(3) { right: 4%; animation-delay: -9s; opacity: 0.5; }
+
+@keyframes pillar-drift {
+  from { transform: translateY(0) scale(1); }
+  to   { transform: translateY(6vh) scale(1.15); }
+}
