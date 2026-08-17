@@ -325,6 +325,12 @@ function wrap(fn) {
 
 const app = express();
 app.use(express.json());
+app.use((req, res, next) => {
+  if (req.url.startsWith("/api/") && !req.url.startsWith("/api/altcha/")) {
+    req.url = req.url.slice(4);
+  }
+  next();
+});
 app.use(express.static(ROOT, { extensions: ["html"] }));
 
 /* altcha */
