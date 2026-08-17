@@ -58,3 +58,17 @@ html {
   from { transform: translateY(0) scale(1); }
   to   { transform: translateY(6vh) scale(1.15); }
 }
+
+/* ===== hover lift feature cards ===== */
+
+section [class*="h-[410px]"],
+section [class*="h-[275px]"] {
+  transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.5s ease, box-shadow 0.5s ease;
+}
+
+section [class*="h-[410px]"]:hover,
+section [class*="h-[275px]"]:hover {
+  transform: translateY(-4px);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 16px 48px -12px rgba(0, 0, 0, 0.5);
+}

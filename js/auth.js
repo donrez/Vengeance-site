@@ -10,6 +10,18 @@
   var I18N = window.XTZ_I18N || {};
   var page = document.body.getAttribute("data-page");
 
+  var NAME = "Vengeance";
+  var YEAR = new Date().getFullYear();
+
+  function fmt(value) {
+    if (typeof value !== "string") return "";
+    return value.replace(/\{(\w+)\}/g, function (m, key) {
+      if (key === "name") return NAME;
+      if (key === "year") return String(YEAR);
+      return "{" + key + "}";
+    });
+  }
+
   function detectLang() {
     var saved = null;
     try {
@@ -36,7 +48,7 @@
     document.documentElement.lang = lang;
     document.querySelectorAll("[data-i18n]").forEach(function (el) {
       var key = el.getAttribute("data-i18n");
-      if (I18N[lang] && I18N[lang][key]) el.textContent = I18N[lang][key];
+      if (I18N[lang] && I18N[lang][key]) el.textContent = fmt(I18N[lang][key]);
     });
     document.querySelectorAll("[data-i18n-attr]").forEach(function (el) {
       var spec = el.getAttribute("data-i18n-attr");

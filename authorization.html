@@ -5,46 +5,84 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Authorization — Vengeance</title>
   <link rel="icon" href="/favicon.ico"/>
-  <link rel="stylesheet" href="/css/vesence.css?v=8"/>
-  <link rel="stylesheet" href="/css/auth.css?v=1"/>
+  <link rel="stylesheet" href="/css/vesence.css?v=9"/>
+  <link rel="stylesheet" href="/css/auth.css?v=2"/>
 </head>
 <body data-page="authorization" class="geist_a71539c9-module__T19VSG__variable geist_mono_8d43a2aa-module__8Li5zG__variable antialiased bg-black" style="--accent-color:#a164dd;--color-pinkpink:#ffffff;--color-pinkpinkDark:#ffffff;--text-color:color-mix(in srgb, #a164dd 50%, white);--text-color-acc:#a164dd;--color-user-login:color-mix(in srgb, #a164dd 20%, white);--color-user-uid:color-mix(in srgb, #a164dd 60%, white);--color-home-title:color-mix(in srgb, #a164dd 40%, white);--color-home-text:color-mix(in srgb, #a164dd 40%, white);--color-welcome:color-mix(in srgb, #a164dd 45%, white);--color-takealook:color-mix(in srgb, #a164dd 10%, white);--color-tom-and-jerry:color-mix(in srgb, #a164dd 30%, rgba(255, 255, 255, 0.25));--color-all-rights:color-mix(in srgb, #a164dd 40%, rgba(255, 255, 255, 0.25))">
 <div class="fixed inset-0 z-[-1] overflow-hidden"><div style="background-color:color-mix(in srgb, #d40f0f 3.5%, rgb(7, 7, 7));position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:-1;pointer-events:none"><div style="position:absolute;top:0;left:0;width:100%;height:100%;z-index:1"><canvas class="noise-overlay" style="image-rendering:pixelated"></canvas></div></div></div>
+<div class="fixed inset-0 z-0 pointer-events-none"><div class="light-pillar-container" style="mix-blend-mode:luminosity"></div></div>
 
-<header class="auth-topbar">
-  <a href="/" class="auth-brand">Vengeance</a>
-  <div class="auth-topbar-right">
-    <a href="/" class="auth-home-link" data-i18n="nav.home">Home</a>
-    <div class="auth-langs">
-      <button type="button" data-lang="en">EN</button>
-      <button type="button" data-lang="pl">PL</button>
-      <button type="button" data-lang="ru">RU</button>
+<div class="auth-langs auth-langs-corner">
+  <button type="button" data-lang="en">EN</button>
+  <button type="button" data-lang="pl">PL</button>
+  <button type="button" data-lang="ru">RU</button>
+</div>
+
+<main class="relative z-10 min-h-screen flex items-center justify-center px-4 py-10">
+  <div class="relative w-full max-w-[350px] mx-auto auth-fade">
+    <div class="relative w-full rounded-[12px] overflow-hidden backdrop-blur-md border border-white/2 bg-black/4 shadow-lg shadow-black/8">
+      <div class="relative px-8 py-6 flex flex-col items-center justify-center space-y-5">
+        <div class="relative w-12 h-12 flex items-center justify-center rounded-[12px] border border-white/10 bg-black/10">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-log-in text-white" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path><polyline points="10 17 15 12 10 7"></polyline><line x1="15" x2="3" y1="12" y2="12"></line></svg>
+        </div>
+        <h1 class="text-2xl font-medium tracking-[-0.01em] text-white" data-i18n="auth.title">Authorization</h1>
+        <div class="auth-error"></div>
+        <form id="auth-form" novalidate class="w-full space-y-1 flex flex-col items-center">
+          <div class="w-full relative">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-user absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 peer-focus:text-[var(--accent-color)] transition-colors duration-300 pointer-events-none" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+            <input id="auth-username" type="text" autocomplete="username" data-i18n-attr="placeholder|reg.placeholder.username" placeholder="Username" class="peer relative w-full pl-10 pr-4 py-2.5 rounded-[8px] bg-black/10 border border-white/5 text-white/70 placeholder:text-[#a8a8a870] focus:outline-none focus:border-[#a8a8a870]/30 transition-all duration-300"/>
+          </div>
+          <div class="w-full relative">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-lock absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 peer-focus:text-[var(--accent-color)] transition-colors duration-300 pointer-events-none" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+            <input id="auth-password" type="password" autocomplete="current-password" data-i18n-attr="placeholder|reg.placeholder.password" placeholder="Password" class="peer relative w-full pl-10 pr-4 py-2.5 rounded-[8px] bg-black/10 border border-white/5 text-white/70 placeholder:text-[#a8a8a870] focus:outline-none focus:border-[#a8a8a870]/30 transition-all duration-300"/>
+          </div>
+          <button type="submit" class="mt-4 w-full cursor-pointer flex items-center justify-center gap-2 px-5 py-2.5 rounded-[8px] bg-[var(--accent-color)] text-white border border-white/30 hover:opacity-80 transition-all duration-300 font-medium text-sm" data-i18n="auth.continue">Continue
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-log-in w-4 h-4" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path><polyline points="10 17 15 12 10 7"></polyline><line x1="15" x2="3" y1="12" y2="12"></line></svg>
+          </button>
+        </form>
+        <div class="w-full flex items-center justify-center gap-2 flex-wrap">
+          <span class="text-[#a8a8a870] text-[14px]" data-i18n="reg.haveAccount">Already have an account?</span>
+          <a href="/registration" class="text-[var(--accent-color)] text-[14px] hover:opacity-80 transition-opacity duration-300" data-i18n="reg.submit">Register</a>
+        </div>
+      </div>
     </div>
-  </div>
-</header>
-
-<main class="auth-wrap">
-  <div class="auth-card">
-    <h1 data-i18n="auth.title">Authorization</h1>
-    <p class="auth-sub">Vengeance</p>
-    <div class="auth-error"></div>
-    <form id="auth-form" novalidate>
-      <div class="field">
-        <label data-i18n="reg.placeholder.username">Username</label>
-        <input id="auth-username" type="text" autocomplete="username"/>
-      </div>
-      <div class="field">
-        <label data-i18n="reg.placeholder.password">Password</label>
-        <input id="auth-password" type="password" autocomplete="current-password"/>
-      </div>
-      <button type="submit" class="btn-primary" data-i18n="auth.continue">Continue</button>
-    </form>
-    <p class="auth-switch"><span data-i18n="reg.haveAccount">Already have an account?</span> <a href="/registration" data-i18n="reg.submit">Register</a></p>
   </div>
 </main>
 
-<script src="/js/dict.js?v=8"></script>
-<script src="/js/hwid.js?v=1"></script>
-<script src="/js/auth.js?v=1"></script>
+<footer class="relative z-10">
+  <div class="py-8 px-6">
+    <div class="max-w-7xl mx-auto">
+      <div class="flex flex-col lg:flex-row justify-center lg:justify-between items-center lg:items-start gap-4">
+        <div class="flex-1 text-center lg:text-left">
+          <div class="mb-2">
+            <p class="text-home-text text-sm" data-i18n="footer.tagline1">All the best is with us!</p>
+            <p class="text-home-text text-sm" data-i18n="footer.tagline2">Quickly join us!</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap justify-center lg:justify-end">
+          <a class="cursor-pointer group flex items-center gap-1.5 px-3 py-1.5 rounded-md" title="Products" href="#">
+            <span class="text-home-text transition-transform duration-300 group-hover:scale-110"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-package" aria-hidden="true"><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"></path><path d="M12 22V12"></path><polyline points="3.29 7 12 12 20.71 7"></polyline><path d="m7.5 4.27 9 5.15"></path></svg></span>
+            <span class="text-sm font-medium hidden sm:inline text-home-text ml-1 transition-colors duration-300" data-i18n="footer.products">Products</span>
+          </a>
+          <a class="cursor-pointer group flex items-center gap-1.5 px-3 py-1.5 rounded-md" title="Privacy Policy" href="#">
+            <span class="text-home-text transition-transform duration-300 group-hover:scale-110"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-shield-check" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"></path><path d="m9 12 2 2 4-4"></path></svg></span>
+            <span class="text-sm font-medium hidden sm:inline text-home-text ml-1 transition-colors duration-300" data-i18n="footer.privacy">Privacy Policy</span>
+          </a>
+          <a class="cursor-pointer group flex items-center gap-1.5 px-3 py-1.5 rounded-md" title="Terms of Service" href="#">
+            <span class="text-home-text transition-transform duration-300 group-hover:scale-110"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-scale" aria-hidden="true"><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"></path><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"></path><path d="M7 21h10"></path><path d="M12 3v18"></path><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"></path></svg></span>
+            <span class="text-sm font-medium hidden sm:inline text-home-text ml-1 transition-colors duration-300" data-i18n="footer.terms">Terms of Service</span>
+          </a>
+        </div>
+        <div class="text-center lg:text-right">
+          <p class="text-home-text text-sm" data-i18n="footer.rights">c {year} {name} Client. All rights reserved.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script defer src="/js/dict.js?v=9"></script>
+<script defer src="/js/hwid.js?v=1"></script>
+<script defer src="/js/auth.js?v=2"></script>
 </body>
 </html>

@@ -51,7 +51,9 @@
   gap: 2px;
   padding: 3px;
   border-radius: 6px;
-  background: rgba(0, 0, 0, 0.35);
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
@@ -208,6 +210,37 @@
 
 .auth-error.show {
   display: block;
+}
+
+.profile-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 14px;
+}
+
+.profile-row span:first-child {
+  color: rgba(168, 168, 168, 0.6);
+}
+
+.profile-row span:last-child {
+  color: #fff;
+  text-align: right;
+  word-break: break-all;
+}
+
+.profile-row .badge {
+  color: var(--accent-color);
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 12px;
+}
+
+button[type="submit"]:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .auth-ok {
