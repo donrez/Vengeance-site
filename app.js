@@ -1,5 +1,7 @@
 const path = require("path");
 const crypto = require("crypto");
+const net = require("net");
+const tls = require("tls");
 const express = require("express");
 const { createClient } = require("@libsql/client");
 
@@ -84,6 +86,11 @@ CREATE TABLE IF NOT EXISTS keys (
   activated_at TEXT,
   days INTEGER DEFAULT 365
 );
+CREATE TABLE IF NOT EXISTS reset_tokens (
+  token TEXT PRIMARY KEY,
+  user_id INTEGER NOT NULL,
+  expires_at TEXT NOT NULL
+);
 `));
       await ensureColumn("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'USER'");
       await ensureColumn("ALTER TABLE users ADD COLUMN sub_end TEXT");
@@ -116,6 +123,91 @@ function hashPassword(password, salt) {
 
 function makeToken() {
   return crypto.randomBytes(32).toString("hex");
+}
+
+/* ================= smtp ================= */
+
+function smtpConnect(host, port, secure) {
+  return new Promise((resolve, reject) => {
+    const sock = secure ? tls.connect({ host, port }) : net.connect({ host, port });
+    let buf = "";
+    const waiters = [];
+    sock.setEncoding("utf8");
+    sock.on("data", (d) => {
+      buf += d;
+      let nl;
+      while ((nl = buf.indexOf("\n")) !== -1) {
+        const raw = buf.slice(0, nl).replace(/\r$/, "");
+        buf = buf.slice(nl + 1);
+        const w = waiters.shift();
+        if (w) w(raw);
+      }
+    });
+    sock.on("error", (e) => reject(e));
+    const timer = setTimeout(() => {
+      sock.destroy();
+      reject(new Error("SMTP timeout"));
+    }, 15000);
+    waiters.push((raw) => {
+      if (!/^220/.test(raw)) {
+        clearTimeout(timer);
+        sock.destroy();
+        reject(new Error("SMTP greeting: " + raw));
+        return;
+      }
+      clearTimeout(timer);
+      resolve({
+        sock,
+        cmd(line) {
+          return new Promise((res, rej) => {
+            waiters.push((r) => (/^\d{3} /.test(r) ? res(r) : rej(new Error("SMTP: " + r))));
+            sock.write(line + "\r\n");
+          });
+        },
+      });
+    });
+  });
+}
+
+async function sendResetEmail(to, link) {
+  const host = process.env.SMTP_HOST;
+  if (!host) return false;
+  try {
+    const user = process.env.SMTP_USER || "";
+    const pass = process.env.SMTP_PASS || "";
+    const from = process.env.SMTP_FROM || user;
+    const port = parseInt(process.env.SMTP_PORT || "465", 10);
+    const secure = port === 465;
+    const b64 = (s) => Buffer.from(s, "utf8").toString("base64");
+    const subject =
+      "=?UTF-8?B?" + Buffer.from("Восстановление пароля Sunless", "utf8").toString("base64") + "?=";
+
+    const s = await smtpConnect(host, port, secure);
+    await s.cmd("EHLO " + host);
+    if (user) {
+      await s.cmd("AUTH LOGIN");
+      await s.cmd(b64(user));
+      await s.cmd(b64(pass));
+    }
+    await s.cmd("MAIL FROM:<" + from + ">");
+    await s.cmd("RCPT TO:<" + to + ">");
+    await s.cmd("DATA");
+    await s.cmd(
+      "Subject: " + subject + "\r\n" +
+        "Content-Type: text/plain; charset=utf-8\r\n" +
+        "MIME-Version: 1.0\r\n\r\n" +
+        "Здравствуйте! Для восстановления пароля перейдите по ссылке:\r\n" + link + "\r\n\r\n" +
+        "Если вы не запрашивали сброс пароля, просто проигнорируйте это письмо.\r\n."
+    );
+    try {
+      await s.cmd("QUIT");
+    } catch (e) {}
+    s.sock.destroy();
+    return true;
+  } catch (e) {
+    console.error("SMTP error:", e.message);
+    return false;
+  }
 }
 
 function deviceHwid(req) {
@@ -300,16 +392,50 @@ app.post(
   requireCaptcha,
   wrap(async (req, res) => {
     const email = String(req.body.email || "").trim().toLowerCase();
-    const user = await getOne("SELECT id FROM users WHERE email = ?", [email]);
+    const user = await getOne("SELECT * FROM users WHERE email = ?", [email]);
     if (!user) return res.status(404).json({ message: "Пользователь с таким email не найден" });
-    res.json({ message: "Ссылка для сброса отправлена на email" });
+
+    const token = makeToken();
+    const expires = new Date(Date.now() + 3600000).toISOString();
+    await run("DELETE FROM reset_tokens WHERE user_id = ?", [user.id]);
+    await run("INSERT INTO reset_tokens (token, user_id, expires_at) VALUES (?, ?, ?)", [
+      token,
+      user.id,
+      expires,
+    ]);
+
+    const host = req.headers["x-forwarded-host"] || req.get("host") || "localhost:3000";
+    const origin = process.env.SITE_URL || "https://" + host;
+    const link = origin + "/reset-password?token=" + token;
+
+    const sent = await sendResetEmail(user.email, link);
+    if (sent) return res.json({ message: "Ссылка для сброса отправлена на email" });
+
+    console.log("RESET LINK (SMTP not configured):", link);
+    res.json({ message: "Ссылка для сброса: " + link });
   })
 );
 
 app.post(
   "/auth/reset-password",
   wrap(async (req, res) => {
-    res.status(400).json({ message: "Токен подтверждения не найден в ссылке" });
+    const token = String(req.body.token || "").trim();
+    const password = String(req.body.password || "");
+    if (!token) return res.status(400).json({ message: "Токен подтверждения не найден в ссылке" });
+
+    const rt = await getOne("SELECT * FROM reset_tokens WHERE token = ?", [token]);
+    if (!rt) return res.status(400).json({ message: "Токен подтверждения не найден в ссылке" });
+    if (new Date(rt.expires_at).getTime() < Date.now())
+      return res.status(400).json({ message: "Ссылка для сброса устарела. Запросите новую" });
+    if (password.length < 8)
+      return res.status(400).json({ message: "Пароль должен быть минимум 8 символов" });
+
+    const salt = crypto.randomBytes(16).toString("hex");
+    const hash = hashPassword(password, salt);
+    await run("UPDATE users SET password_hash = ?, salt = ? WHERE id = ?", [hash, salt, rt.user_id]);
+    await run("DELETE FROM reset_tokens WHERE token = ?", [token]);
+    await run("DELETE FROM sessions WHERE user_id = ?", [rt.user_id]);
+    res.json({ message: "Пароль успешно изменён" });
   })
 );
 
