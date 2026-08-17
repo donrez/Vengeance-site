@@ -3,18 +3,12 @@
   "framework": null,
   "builds": [
     { "src": "**/*.html", "use": "@vercel/static" },
-    { "src": "css/**", "use": "@vercel/static" },
-    { "src": "js/**", "use": "@vercel/static" },
     { "src": "fonts/**", "use": "@vercel/static" },
     { "src": "assets/**", "use": "@vercel/static" },
-    { "src": "favicon.ico", "use": "@vercel/static" },
     { "src": "api/index.js", "use": "@vercel/node" }
   ],
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/" },
-    { "source": "/registration", "destination": "/registration.html" },
-    { "source": "/authorization", "destination": "/authorization.html" },
-    { "source": "/profile", "destination": "/profile.html" },
-    { "source": "/admin", "destination": "/admin.html" }
+    { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
