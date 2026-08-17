@@ -1,0 +1,13 @@
+<svg width="480" height="270" viewBox="0 0 480 270" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect width="480" height="270" fill="#10131a"/>
+<rect x="0" y="0" width="480" height="270" fill="url(#g)"/>
+<circle cx="240" cy="122" r="34" fill="#2787f5"/>
+<path d="M232 100v44l32-22-32-22z" fill="#fff"/>
+<text x="240" y="205" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" fill="#8b93a7">VK Видео</text>
+<defs>
+<linearGradient id="g" x1="0" y1="0" x2="480" y2="270">
+<stop offset="0" stop-color="#10131a"/>
+<stop offset="1" stop-color="#1a2030"/>
+</linearGradient>
+</defs>
+</svg>

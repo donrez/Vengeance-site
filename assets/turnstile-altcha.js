@@ -8,22 +8,37 @@
   function makeWidget(el, opts) {
     var id = "altcha-w" + Math.random().toString(36).slice(2);
     var w = document.createElement("altcha-widget");
-    w.setAttribute("challenge-url", "/api/altcha/challenge");
+    w.setAttribute("challenge", "/api/altcha/challenge");
     w.setAttribute("hide-footer", "");
     w.style.width = "100%";
     w.style.maxWidth = "300px";
     w.style.margin = "0 auto";
     w.style.display = "block";
     (el && el.appendChild ? el : document.body).appendChild(w);
-    registry[id] = { widget: w, opts: opts || {} };
+    registry[id] = { widget: w, opts: opts || {}, payload: "" };
     w.addEventListener("statechange", function (ev) {
-      if (ev && ev.detail && ev.detail.state === "verified" && w.value) {
+      var d = ev && ev.detail;
+      if (d && d.state === "verified") {
+        if (d.payload) registry[id].payload = d.payload;
         var o = registry[id] && registry[id].opts;
         if (o && o.onSuccess) {
-          try { o.onSuccess(w.value, null); } catch (e) {}
+          try { o.onSuccess(d.payload, null); } catch (e) {}
         }
         if (o && o.callback) {
-          try { o.callback(w.value); } catch (e) {}
+          try { o.callback(d.payload); } catch (e) {}
+        }
+      }
+    });
+    w.addEventListener("verified", function (ev) {
+      var d = ev && ev.detail;
+      if (d && d.payload) {
+        registry[id].payload = d.payload;
+        var o = registry[id] && registry[id].opts;
+        if (o && o.onSuccess) {
+          try { o.onSuccess(d.payload, null); } catch (e) {}
+        }
+        if (o && o.callback) {
+          try { o.callback(d.payload); } catch (e) {}
         }
       }
     });
@@ -36,7 +51,7 @@
     },
     getResponse: function (id) {
       var e = registry[id];
-      return e && e.widget && e.widget.value ? e.widget.value : "";
+      return (e && e.payload) || (e && e.widget && e.widget.value) || "";
     },
     remove: function (id) {
       var e = registry[id];
