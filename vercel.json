@@ -11,6 +11,7 @@
     { "src": "api/index.js", "use": "@vercel/node" }
   ],
   "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/" },
     { "source": "/registration", "destination": "/registration.html" },
     { "source": "/authorization", "destination": "/authorization.html" },
     { "source": "/profile", "destination": "/profile.html" },
