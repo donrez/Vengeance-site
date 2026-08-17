@@ -253,7 +253,7 @@ app.post("/api/logout", authUser, wrap(async (req, res) => {
   res.json({ ok: true });
 }));
 
-app.get("/api/me", authUser, wrap(async (req, res) => {
+app.all("/api/me", authUser, wrap(async (req, res) => {
   res.json({ user: publicUser(req.user) });
 }));
 
