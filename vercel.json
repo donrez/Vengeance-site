@@ -1,4 +1,5 @@
 {
+  "framework": null,
   "rewrites": [
     { "source": "/registration", "destination": "/registration.html" },
     { "source": "/authorization", "destination": "/authorization.html" },
