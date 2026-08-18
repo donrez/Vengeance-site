@@ -704,7 +704,65 @@ app.post(
 );
 
 app.put("/admin/read/user", authAdmin, wrap(async (req, res) => {
-  res.status(403).json({ message: "Действие недоступно" });
+  const username = String(req.query.username || "").trim();
+  const email = String(req.query.email || "").trim().toLowerCase();
+  if (!username || !email) return res.status(400).json({ message: "Заполни username и email." });
+  const user = await getOne("SELECT * FROM users WHERE username = ? AND email = ?", [username, email]);
+  if (!user) return res.status(404).json({ message: "Пользователь не найден" });
+
+  const updates = [];
+  const args = [];
+  let newPassword = null;
+
+  const role = String(req.query.role || "").trim().toUpperCase();
+  if (role && ["USER", "ADMIN", "OWNER", "MODER", "MEDIA", "BETA"].includes(role)) {
+    updates.push("role = ?");
+    args.push(role);
+  }
+
+  const subs = Number(req.query.subs);
+  if (Number.isFinite(subs) && subs > 0) {
+    const days = Math.min(subs, 36500);
+    const now = new Date();
+    const cur = user.sub_end ? new Date(user.sub_end) : null;
+    const base = cur && cur.getTime() > now.getTime() ? cur : now;
+    let end = new Date(base.getTime() + days * 86400000);
+    if (days >= 36500) end = new Date("2099-12-31T23:59:59.000Z");
+    updates.push("sub_end = ?");
+    args.push(end.toISOString());
+  }
+
+  if (req.query.passwordReset === "true") {
+    newPassword = crypto.randomBytes(8).toString("base64").replace(/[^A-Za-z0-9]/g, "").slice(0, 10);
+    const salt = crypto.randomBytes(16).toString("hex");
+    updates.push("password_hash = ?", "salt = ?");
+    args.push(hashPassword(newPassword, salt), salt);
+  }
+
+  if (req.query.hwidReset === "true") {
+    updates.push("hwid = ''");
+  }
+
+  if (updates.length) {
+    await run(`UPDATE users SET ${updates.join(", ")} WHERE id = ?`, [...args, user.id]);
+  }
+
+  if (newPassword) return res.json({ message: "New password: " + newPassword });
+  res.json({ message: "Пользователь обновлён" });
+}));
+
+app.post("/admin/give/userProfile", authAdmin, wrap(async (req, res) => {
+  const id = Number(req.query.id || 0);
+  const user = await getOne("SELECT * FROM users WHERE id = ?", [id]);
+  if (!user) return res.status(404).json({ message: "Пользователь не найден" });
+  const end = user.sub_end ? new Date(user.sub_end) : null;
+  res.json({
+    id: user.id,
+    username: user.username,
+    email: user.email,
+    role: (user.role || "USER").toUpperCase(),
+    hasSubscription: !!(end && end.getTime() > Date.now()),
+  });
 }));
 
 app.post("/admin/read/deleteGrant", authAdmin, wrap(async (req, res) => {
