@@ -617,7 +617,12 @@ app.post("/zaliv/jar/confirm", wrap(async (req, res) => {
 
 function isAdminUser(u) {
   const role = String((u && u.role) || "").toUpperCase();
-  return role === "ADMIN" || role === "OWNER" || role === "MODER";
+  if (role === "ADMIN" || role === "OWNER" || role === "MODER") return true;
+  const admins = String(process.env.ADMIN_USERS || "coderdlc")
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  return admins.includes(String((u && u.username) || "").toLowerCase());
 }
 
 async function authAdmin(req, res, next) {
