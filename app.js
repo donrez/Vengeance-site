@@ -91,6 +91,15 @@ CREATE TABLE IF NOT EXISTS reset_tokens (
   user_id INTEGER NOT NULL,
   expires_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS promos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  value TEXT NOT NULL UNIQUE,
+  discount INTEGER DEFAULT 0,
+  outActive INTEGER DEFAULT 1,
+  entActive INTEGER DEFAULT 0,
+  outDate TEXT,
+  days INTEGER DEFAULT 0
+);
 `));
       await ensureColumn("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'USER'");
       await ensureColumn("ALTER TABLE users ADD COLUMN sub_end TEXT");
@@ -681,7 +690,51 @@ app.post("/admin/give/hwidKeysGet", authAdmin, wrap(async (req, res) => {
 }));
 
 app.post("/admin/give/promocode", authAdmin, wrap(async (req, res) => {
-  res.json([]);
+  const list = await getAll("SELECT * FROM promos ORDER BY id");
+  res.json(
+    list.map((p) => ({
+      id: p.id,
+      value: p.value,
+      discount: Number(p.discount) || 0,
+      outActive: Number(p.outActive) || 0,
+      entActive: Number(p.entActive) || 0,
+      outDate: p.outDate || "",
+      days: Number(p.days) || 0,
+    }))
+  );
+}));
+
+app.post("/admin/create/promo", authAdmin, wrap(async (req, res) => {
+  const value = String(req.query.value || "").trim().toUpperCase();
+  const discount = Number(req.query.discount);
+  const outActive = Number(req.query.outActived ?? req.query.outActive);
+  const days = Number(req.query.days);
+  if (!/^[A-Z0-9]{3,32}$/.test(value))
+    return res.status(400).json({ message: "Промокод: только латиница и цифры, 3-32 символа" });
+  if (!Number.isFinite(discount) || discount < 0 || discount > 100)
+    return res.status(400).json({ message: "Скидка должна быть от 0 до 100" });
+  if (!Number.isFinite(outActive) || outActive < 1)
+    return res.status(400).json({ message: "Лимит активаций должен быть не меньше 1" });
+  const d = Number.isFinite(days) && days > 0 ? Math.min(Math.floor(days), 36500) : 0;
+  try {
+    await run("INSERT INTO promos (value, discount, outActive, outDate, days) VALUES (?, ?, ?, ?, ?)", [
+      value,
+      Math.floor(discount),
+      Math.floor(outActive),
+      d > 0 ? new Date(Date.now() + d * 86400000).toISOString() : "",
+      d,
+    ]);
+  } catch (e) {
+    return res.status(409).json({ message: "Промокод уже существует" });
+  }
+  res.json({ success: true, message: "Промокод создан" });
+}));
+
+app.post("/admin/read/deletePromocode", authAdmin, wrap(async (req, res) => {
+  const id = Number(req.query.id || 0);
+  if (!id) return res.status(400).json({ message: "Укажите id промокода" });
+  await run("DELETE FROM promos WHERE id = ?", [id]);
+  res.json({ success: true, message: "Промокод удалён" });
 }));
 
 app.post(
