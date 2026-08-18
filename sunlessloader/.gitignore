@@ -1,0 +1,8 @@
+bin/
+obj/
+.vs/
+.vscode/
+publish/
+*.user
+Точечный рисунок.bmp
+write_html.ps1
