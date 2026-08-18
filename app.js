@@ -369,6 +369,13 @@ function wrap(fn) {
 const app = express();
 app.use(express.json());
 app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Headers", "Authorization, Content-Type, CF-Turnstile-Token, Altcha-Token, x-hwid");
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS");
+  if (req.method === "OPTIONS") return res.sendStatus(204);
+  next();
+});
+app.use((req, res, next) => {
   if (req.url.startsWith("/api/") && !req.url.startsWith("/api/altcha/")) {
     req.url = req.url.slice(4);
   }
