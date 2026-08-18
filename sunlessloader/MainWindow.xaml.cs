@@ -426,14 +426,10 @@ namespace Sunless
                         Dispatcher.Invoke(async () => await PickFolderAsync(ws));
                         break;
                     case "download":
-                        Respond(ws, "download", new
-                        {
-                            stage = "error",
-                            data = new { status = "error", message = "Скачивание клиента пока недоступно. Ожидайте обновление лаунчера." },
-                        });
+                        _ = DownloadClientAsync(ws, message);
                         break;
                     case "start":
-                        Respond(ws, "start", new { success = false, message = "Клиент не установлен." });
+                        _ = StartClientAsync(ws, message);
                         break;
                     default:
                         Log("Unknown message id: " + id);
@@ -460,6 +456,172 @@ namespace Sunless
             {
                 Log("WS send error: " + ex.Message);
             }
+        }
+
+        private const int DownloadChunk = 3 * 1024 * 1024;
+
+        private async Task DownloadClientAsync(WebSocket ws, JsonElement message)
+        {
+            string? token = ReadSessionToken();
+            if (string.IsNullOrEmpty(token))
+            {
+                Respond(ws, "download", new { stage = "error", status = "error", message = "Нет авторизации. Войдите заново." });
+                return;
+            }
+
+            string folder = DefaultFolder();
+            bool reinstall = false;
+            try
+            {
+                if (message.ValueKind == JsonValueKind.Object)
+                {
+                    if (message.TryGetProperty("folder", out var f) && f.ValueKind == JsonValueKind.String)
+                    {
+                        string? v = f.GetString();
+                        if (!string.IsNullOrWhiteSpace(v)) folder = v;
+                    }
+                    if (message.TryGetProperty("reinstall_client", out var r))
+                    {
+                        reinstall = r.ValueKind == JsonValueKind.True || (r.ValueKind == JsonValueKind.String && r.GetString() == "true");
+                    }
+                }
+            }
+            catch { }
+
+            try
+            {
+                Directory.CreateDirectory(folder);
+                var info = await ApiGetJsonAsync(token, "/zaliv/jar/info");
+                if (info == null || info.RootElement.TryGetProperty("name", out var nameProp) == false)
+                {
+                    Respond(ws, "download", new { stage = "error", status = "error", message = "Клиент ещё не загружен на сервер." });
+                    return;
+                }
+                string fileName = nameProp.GetString() ?? "client.jar";
+                long total = info.RootElement.TryGetProperty("size", out var sizeProp) ? sizeProp.GetInt64() : 0;
+                string dest = Path.Combine(folder, fileName);
+
+                if (reinstall) File.Delete(dest);
+                if (File.Exists(dest) && new FileInfo(dest).Length == total)
+                {
+                    Log("Client already downloaded: " + dest);
+                    Respond(ws, "download", new { stage = "start", total_files_count = 1 });
+                    Respond(ws, "download", new { stage = "files_progress", current_files_count = 1 });
+                    Respond(ws, "download", new { stage = "end" });
+                    return;
+                }
+
+                Respond(ws, "download", new { stage = "start", total_files_count = 1 });
+
+                using (var fs = new FileStream(dest, FileMode.Create, FileAccess.Write))
+                {
+                    long offset = 0;
+                    while (offset < total)
+                    {
+                        int len = (int)Math.Min(DownloadChunk, total - offset);
+                        byte[]? chunk = await ApiGetBytesAsync(token, "/zaliv/jar/read?offset=" + offset + "&length=" + len);
+                        if (chunk == null || chunk.Length == 0)
+                        {
+                            Respond(ws, "download", new { stage = "error", status = "error", message = "Ошибка скачивания клиента." });
+                            return;
+                        }
+                        await fs.WriteAsync(chunk, 0, chunk.Length);
+                        offset += chunk.Length;
+                        Respond(ws, "download", new { stage = "files_progress", current_files_count = 0 });
+                    }
+                }
+
+                Log("Client downloaded: " + dest);
+                Respond(ws, "download", new { stage = "files_progress", current_files_count = 1 });
+                Respond(ws, "download", new { stage = "end" });
+            }
+            catch (Exception ex)
+            {
+                Log("Download error: " + ex.Message);
+                Respond(ws, "download", new { stage = "error", status = "error", message = "Не удалось скачать клиент: " + ex.Message });
+            }
+        }
+
+        private async Task StartClientAsync(WebSocket ws, JsonElement message)
+        {
+            string folder = DefaultFolder();
+            int memory = 2048;
+            try
+            {
+                if (message.ValueKind == JsonValueKind.Object &&
+                    message.TryGetProperty("settings", out var st) && st.ValueKind == JsonValueKind.Object)
+                {
+                    if (st.TryGetProperty("folder", out var f) && f.ValueKind == JsonValueKind.String)
+                    {
+                        string? v = f.GetString();
+                        if (!string.IsNullOrWhiteSpace(v)) folder = v;
+                    }
+                    if (st.TryGetProperty("memory", out var m))
+                    {
+                        int mv = m.ValueKind == JsonValueKind.Number ? m.GetInt32() : (int.TryParse(m.GetString(), out int x) ? x : 0);
+                        if (mv > 0) memory = Math.Min(mv, 8192);
+                    }
+                }
+            }
+            catch { }
+
+            try
+            {
+                if (!Directory.Exists(folder))
+                {
+                    Respond(ws, "start", new { success = false, message = "Клиент не установлен. Нажмите «Скачать»." });
+                    return;
+                }
+
+                string? exe = Directory.GetFiles(folder, "*.exe").FirstOrDefault();
+                if (exe != null)
+                {
+                    Process.Start(new ProcessStartInfo(exe) { WorkingDirectory = folder, UseShellExecute = true });
+                    Log("Started: " + exe);
+                    Respond(ws, "start", new { success = true, message = "Клиент запущен" });
+                    return;
+                }
+
+                string? jar = Directory.GetFiles(folder, "*.jar").FirstOrDefault();
+                if (jar == null)
+                {
+                    Respond(ws, "start", new { success = false, message = "Клиент не найден. Переустановите клиент." });
+                    return;
+                }
+
+                var psi = new ProcessStartInfo("java")
+                {
+                    WorkingDirectory = folder,
+                    UseShellExecute = false,
+                    Arguments = "-Xmx" + memory + "M -jar \"" + jar + "\"",
+                };
+                Process.Start(psi);
+                Log("Started: java -Xmx" + memory + "M -jar " + jar);
+                Respond(ws, "start", new { success = true, message = "Клиент запущен" });
+            }
+            catch (Exception ex)
+            {
+                Log("Start error: " + ex.Message);
+                Respond(ws, "start", new { success = false, message = "Не удалось запустить клиент. Убедитесь, что установлена Java: " + ex.Message });
+            }
+        }
+
+        private async Task<JsonDocument?> ApiGetJsonAsync(string token, string path)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, ApiBase + path);
+            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+            using var response = await _http.SendAsync(request);
+            if (!response.IsSuccessStatusCode) return null;
+            return JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        }
+
+        private async Task<byte[]?> ApiGetBytesAsync(string token, string path)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, ApiBase + path);
+            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+            using var response = await _http.SendAsync(request);
+            if (!response.IsSuccessStatusCode) return null;
+            return await response.Content.ReadAsByteArrayAsync();
         }
 
         private void OpenLink(JsonElement message)

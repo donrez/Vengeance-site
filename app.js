@@ -478,6 +478,18 @@ app.get("/user/getHwid", authUser, wrap(async (req, res) => {
 
 app.post("/launcher/login-by-token", authUser, wrap(async (req, res) => {
   const u = req.user;
+  const hwid = String(req.body.hwid || "").trim().toLowerCase();
+  if (!hwid) return res.status(400).json({ message: "HWID не передан" });
+  if (u.hwid) {
+    const banned = await getOne("SELECT * FROM banned_hwids WHERE hwid = ?", [u.hwid]);
+    if (banned) return res.status(403).json({ message: "Аккаунт заблокирован. Обратитесь в поддержку" });
+    if (u.hwid !== hwid)
+      return res.status(403).json({ message: "Аккаунт привязан к другому устройству" });
+  } else {
+    const banned = await getOne("SELECT * FROM banned_hwids WHERE hwid = ?", [hwid]);
+    if (banned) return res.status(403).json({ message: "Аккаунт заблокирован. Обратитесь в поддержку" });
+    await run("UPDATE users SET hwid = ? WHERE id = ?", [hwid, u.id]);
+  }
   const end = u.sub_end ? new Date(u.sub_end) : null;
   res.json({
     user: {
