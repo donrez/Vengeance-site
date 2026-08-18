@@ -617,6 +617,25 @@ app.get("/user/getHwid", authUser, wrap(async (req, res) => {
   res.json({ hwid: req.user.hwid || "" });
 }));
 
+/* launcher (frontend contract) */
+
+app.post("/launcher/login-by-token", authUser, wrap(async (req, res) => {
+  const u = req.user;
+  const end = u.sub_end ? new Date(u.sub_end) : null;
+  res.json({
+    user: {
+      id: String(u.id),
+      login: u.username,
+      group: end && end.getTime() > Date.now() ? "Premium" : "Free",
+      buyed_until: end && end.getTime() > Date.now() ? end.toISOString() : null,
+    },
+  });
+}));
+
+app.post("/launcher/logout", authUser, wrap(async (req, res) => {
+  res.json({ success: true });
+}));
+
 app.post("/user/sub", authUser, wrap(async (req, res) => {
   const end = req.user.sub_end ? new Date(req.user.sub_end) : null;
   if (end && end.getTime() > Date.now()) {

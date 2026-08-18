@@ -3,15 +3,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
         Title="Sunless" Height="570" Width="850"
-        WindowStyle="None" AllowsTransparency="True"
-        Background="Transparent" ResizeMode="NoResize"
+        WindowStyle="None" Background="#111927" ResizeMode="NoResize"
         WindowStartupLocation="CenterScreen"
+        SourceInitialized="Window_SourceInitialized"
         Loaded="Window_Loaded">
-    <Border CornerRadius="16" Background="#0d0d14"
-            BorderBrush="#1a1a2e" BorderThickness="1">
-        <Border.Effect>
-            <DropShadowEffect Color="#000000" BlurRadius="40" ShadowDepth="0" Opacity="0.8"/>
-        </Border.Effect>
-        <wv2:WebView2 x:Name="WebView" DefaultBackgroundColor="Transparent"/>
-    </Border>
+    <wv2:WebView2 x:Name="WebView" DefaultBackgroundColor="Transparent"/>
 </Window>
