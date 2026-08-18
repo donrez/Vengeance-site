@@ -119,6 +119,21 @@ CREATE TABLE IF NOT EXISTS banned_hwids (
   user_id INTEGER,
   created_at TEXT DEFAULT (datetime('now'))
 );
+CREATE TABLE IF NOT EXISTS client_builds (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  size INTEGER NOT NULL DEFAULT 0,
+  beta INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'uploading',
+  username TEXT NOT NULL,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS client_chunks (
+  build_id TEXT NOT NULL,
+  idx INTEGER NOT NULL,
+  data BLOB NOT NULL,
+  PRIMARY KEY (build_id, idx)
+);
 `));
       await ensureColumn("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'USER'");
       await ensureColumn("ALTER TABLE users ADD COLUMN sub_end TEXT");
@@ -390,7 +405,7 @@ function wrap(fn) {
 /* ================= app ================= */
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: "6mb" }));
 app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
   res.header("Access-Control-Allow-Headers", "Authorization, Content-Type, CF-Turnstile-Token, Altcha-Token, x-hwid");
@@ -671,14 +686,101 @@ app.post("/media/getPromoInfoForMedia", authUser, wrap(async (req, res) => {
   res.status(404).json({ message: "Медиа-панель недоступна" });
 }));
 
-/* zaliv (client upload) — not available */
+/* zaliv (client upload) — chunked: works within Vercel 4.5MB payload limit */
 
-app.post("/zaliv/jar", authUser, wrap(async (req, res) => {
-  res.status(400).json({ message: "Заливка клиента недоступна" });
+const ZALIV_CHUNK = 3 * 1024 * 1024; /* raw bytes per chunk (base64 ~4.2MB < 4.5MB) */
+
+app.post("/zaliv/jar/init", authUser, wrap(async (req, res) => {
+  if (!isAdminUser(req.user)) return res.status(403).json({ message: "Доступ только для администратора" });
+  const name = String(req.body.name || "").trim();
+  const size = Number(req.body.size);
+  const beta = req.body.beta ? 1 : 0;
+  if (!name || !Number.isInteger(size) || size <= 0 || size > 512 * 1024 * 1024)
+    return res.status(400).json({ message: "Некорректный файл" });
+  const busy = await getOne("SELECT id FROM client_builds WHERE status = 'uploading'");
+  if (busy) return res.status(409).json({ message: "Билд уже идёт. Дождитесь завершения." });
+  const id = crypto.randomBytes(12).toString("hex");
+  await run(
+    "INSERT INTO client_builds (id, name, size, beta, status, username) VALUES (?, ?, ?, ?, 'uploading', ?)",
+    [id, name, size, beta, req.user.username]
+  );
+  res.json({ uploadId: id, chunkSize: ZALIV_CHUNK, chunks: Math.ceil(size / ZALIV_CHUNK) });
+}));
+
+app.post("/zaliv/jar/chunk", authUser, wrap(async (req, res) => {
+  const uploadId = String(req.body.uploadId || "");
+  const index = Number(req.body.index);
+  const data = String(req.body.data || "");
+  const build = await getOne("SELECT * FROM client_builds WHERE id = ?", [uploadId]);
+  if (!build || build.status !== "uploading")
+    return res.status(400).json({ message: "Загрузка не найдена или уже завершена" });
+  const buf = Buffer.from(data, "base64");
+  if (!buf.length || buf.length > ZALIV_CHUNK)
+    return res.status(400).json({ message: "Некорректный чанк" });
+  await run(
+    "INSERT INTO client_chunks (build_id, idx, data) VALUES (?, ?, ?) ON CONFLICT(build_id, idx) DO UPDATE SET data = excluded.data",
+    [uploadId, Number.isInteger(index) ? index : 0, buf]
+  );
+  const got = await getOne(
+    "SELECT COUNT(*) AS c, COALESCE(SUM(length(data)), 0) AS total FROM client_chunks WHERE build_id = ?",
+    [uploadId]
+  );
+  if (Number(got.total) >= build.size) {
+    await run("UPDATE client_builds SET status = 'done' WHERE id = ?", [uploadId]);
+  }
+  res.json({ received: Number(got.total), total: build.size });
 }));
 
 app.post("/zaliv/jar/confirm", wrap(async (req, res) => {
-  res.status(400).json({ message: "Заливка клиента недоступна" });
+  const build = await getOne("SELECT * FROM client_builds ORDER BY created_at DESC, id DESC LIMIT 1");
+  if (!build) return res.status(404).json({ message: "Загрузка не найдена" });
+  await run("UPDATE client_builds SET status = 'done' WHERE id = ?", [build.id]);
+  res.json({ message: "OK" });
+}));
+
+app.get("/zaliv/jar/status", authUser, wrap(async (req, res) => {
+  const build = await getOne("SELECT * FROM client_builds ORDER BY created_at DESC, id DESC LIMIT 1");
+  if (!build) return res.status(404).json({ message: "Клиент ещё не загружен" });
+  if (build.status === "uploading") return res.status(202).json({ message: "Идёт загрузка клиента" });
+  res.json({ message: "Клиент собран и залит в /files.", name: build.name, size: build.size, beta: !!build.beta });
+}));
+
+app.get("/zaliv/jar/info", authUser, wrap(async (req, res) => {
+  const build = await getOne(
+    "SELECT * FROM client_builds WHERE status = 'done' ORDER BY created_at DESC, id DESC LIMIT 1"
+  );
+  if (!build) return res.status(404).json({ message: "Клиент не загружен" });
+  res.json({ name: build.name, size: build.size, beta: !!build.beta, updated: build.created_at });
+}));
+
+app.get("/zaliv/jar/read", authUser, wrap(async (req, res) => {
+  const build = await getOne(
+    "SELECT * FROM client_builds WHERE status = 'done' ORDER BY created_at DESC, id DESC LIMIT 1"
+  );
+  if (!build) return res.status(404).json({ message: "Клиент не загружен" });
+  const offset = Math.max(0, Number(req.query.offset) || 0);
+  const length = Math.min(ZALIV_CHUNK, Math.max(1, Number(req.query.length) || 1024 * 1024));
+  const fromIdx = Math.floor(offset / ZALIV_CHUNK);
+  const rows = await getAll(
+    "SELECT idx, data FROM client_chunks WHERE build_id = ? AND idx >= ? ORDER BY idx",
+    [build.id, fromIdx]
+  );
+  const parts = [];
+  let pos = fromIdx * ZALIV_CHUNK;
+  let need = length;
+  for (const r of rows) {
+    if (need <= 0) break;
+    const buf = Buffer.from(r.data);
+    const start = Math.max(0, offset - pos);
+    const end = Math.min(buf.length, start + need);
+    if (end > start) parts.push(buf.subarray(start, end));
+    need -= Math.max(0, end - start);
+    pos += buf.length;
+  }
+  const out = Buffer.concat(parts);
+  res.set("Content-Type", "application/octet-stream");
+  res.set("Content-Length", String(out.length));
+  res.send(out);
 }));
 
 /* admin (minimal) */
