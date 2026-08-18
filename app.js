@@ -290,6 +290,40 @@ function requireCaptcha(req, res, next) {
   next();
 }
 
+function optionalCaptcha(req, res, next) {
+  const token = String(req.headers["cf-turnstile-token"] || req.headers["altcha-token"] || "").trim();
+  if (token && !altchaVerify(token)) {
+    return res.status(400).json({ message: "Пройдите проверку капчи" });
+  }
+  next();
+}
+
+const rateMap = new Map();
+function getRateKey(name, req) {
+  const ip = String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "?").split(",")[0].trim();
+  return name + ":" + ip;
+}
+function rateLimit(name, max, windowMs) {
+  return (req, res, next) => {
+    const key = getRateKey(name, req);
+    const now = Date.now();
+    let rec = rateMap.get(key);
+    if (!rec || now - rec.t >= windowMs) {
+      rec = { t: now, n: 0 };
+      rateMap.set(key, rec);
+    }
+    rec.n += 1;
+    if (rec.n > max) {
+      const left = Math.ceil((windowMs - (now - rec.t)) / 1000);
+      return res.status(429).json({ message: "Слишком много попыток. Подождите " + left + " сек" });
+    }
+    next();
+  };
+}
+function clearRate(name, req) {
+  rateMap.delete(getRateKey(name, req));
+}
+
 /* ================= auth middleware ================= */
 
 async function authUser(req, res, next) {
@@ -343,7 +377,8 @@ app.get("/api/altcha/challenge", wrap(async (req, res) => {
 
 app.post(
   "/auth/login",
-  requireCaptcha,
+  optionalCaptcha,
+  rateLimit("login", 10, 5 * 60 * 1000),
   wrap(async (req, res) => {
     const username = String(req.body.username || "").trim();
     const password = String(req.body.password || "");
@@ -356,6 +391,7 @@ app.post(
     const hwid = deviceHwid(req);
     if (user.hwid && hwid && user.hwid !== hwid)
       return res.status(403).json({ message: "Аккаунт привязан к другому устройству" });
+    clearRate("login", req);
 
     const token = makeToken();
     await run("INSERT INTO sessions (token, user_id) VALUES (?, ?)", [token, user.id]);
@@ -395,7 +431,8 @@ app.post(
 
 app.post(
   "/auth/forgot-password",
-  requireCaptcha,
+  optionalCaptcha,
+  rateLimit("forgot", 5, 10 * 60 * 1000),
   wrap(async (req, res) => {
     const email = String(req.body.email || "").trim().toLowerCase();
     const user = await getOne("SELECT * FROM users WHERE email = ?", [email]);
@@ -447,7 +484,7 @@ app.post(
 
 app.post(
   "/auth/change-password",
-  requireCaptcha,
+  optionalCaptcha,
   authUser,
   wrap(async (req, res) => {
     const password = String(req.body.password || "");
