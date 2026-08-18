@@ -100,6 +100,25 @@ CREATE TABLE IF NOT EXISTS promos (
   outDate TEXT,
   days INTEGER DEFAULT 0
 );
+CREATE TABLE IF NOT EXISTS hwid_keys (
+  key TEXT PRIMARY KEY,
+  used INTEGER DEFAULT 0,
+  used_by INTEGER,
+  activated_at TEXT,
+  days INTEGER DEFAULT 365
+);
+CREATE TABLE IF NOT EXISTS grants (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  promo TEXT NOT NULL,
+  media_uid TEXT,
+  percent INTEGER DEFAULT 0,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS banned_hwids (
+  hwid TEXT PRIMARY KEY,
+  user_id INTEGER,
+  created_at TEXT DEFAULT (datetime('now'))
+);
 `));
       await ensureColumn("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'USER'");
       await ensureColumn("ALTER TABLE users ADD COLUMN sub_end TEXT");
@@ -344,6 +363,10 @@ async function authUser(req, res, next) {
     if (!s) return res.status(401).json({ message: "Сессия больше недействительна. Войдите заново." });
     const user = await getOne("SELECT * FROM users WHERE id = ?", [s.user_id]);
     if (!user) return res.status(401).json({ message: "Сессия больше недействительна. Войдите заново." });
+    if (user.hwid) {
+      const banned = await getOne("SELECT * FROM banned_hwids WHERE hwid = ?", [user.hwid]);
+      if (banned) return res.status(403).json({ message: "Аккаунт заблокирован. Обратитесь в поддержку" });
+    }
     req.user = user;
     req.token = token;
     next();
@@ -407,6 +430,10 @@ app.post(
     const hwid = deviceHwid(req);
     if (user.hwid && hwid && user.hwid !== hwid)
       return res.status(403).json({ message: "Аккаунт привязан к другому устройству" });
+    if (user.hwid) {
+      const banned = await getOne("SELECT * FROM banned_hwids WHERE hwid = ?", [user.hwid]);
+      if (banned) return res.status(403).json({ message: "Аккаунт заблокирован. Обратитесь в поддержку" });
+    }
     clearRate("login", req);
 
     const token = makeToken();
@@ -514,7 +541,12 @@ app.post(
 );
 
 async function activateKeyForUser(req, res, key) {
-  const k = await getOne("SELECT * FROM keys WHERE key = ?", [key]);
+  let k = await getOne("SELECT * FROM keys WHERE key = ?", [key]);
+  let table = "keys";
+  if (!k) {
+    k = await getOne("SELECT * FROM hwid_keys WHERE key = ?", [key]);
+    table = "hwid_keys";
+  }
   if (!k) return res.status(404).json({ message: "Ключ недействителен" });
   if (k.used) return res.status(409).json({ message: "Ключ уже использован" });
 
@@ -529,7 +561,7 @@ async function activateKeyForUser(req, res, key) {
 
   const statements = [
     {
-      sql: "UPDATE keys SET used = 1, used_by = ?, activated_at = datetime('now') WHERE key = ?",
+      sql: `UPDATE ${table} SET used = 1, used_by = ?, activated_at = datetime('now') WHERE key = ?`,
       args: [req.user.id, key],
     },
     { sql: "UPDATE users SET sub_end = ? WHERE id = ?", args: [subEnd.toISOString(), req.user.id] },
@@ -569,6 +601,7 @@ app.post("/auth/hwidKeyActivate", authUser, wrap(async (req, res) => {
 
 app.get("/user/profile", authUser, wrap(async (req, res) => {
   const u = req.user;
+  const end = u.sub_end ? new Date(u.sub_end) : null;
   res.json({
     id: u.id,
     username: u.username,
@@ -576,7 +609,7 @@ app.get("/user/profile", authUser, wrap(async (req, res) => {
     role: u.role || "USER",
     regDate: u.created_at,
     hwid: u.hwid || "",
-    subscription: u.subscription || "none",
+    subscription: end && end.getTime() > Date.now() ? end.toISOString() : "none",
   });
 }));
 
@@ -681,19 +714,85 @@ app.post("/admin/give/keys", authAdmin, wrap(async (req, res) => {
   const keys = await getAll(
     "SELECT k.key, k.used, k.activated_at, k.days, u.username AS used_by FROM keys k LEFT JOIN users u ON u.id = k.used_by ORDER BY k.used, k.key"
   );
-  const list = keys.map((k, i) => ({
-    id: i + 1,
+  const list = keys.map((k) => ({
+    id: k.key,
     value: k.key,
     days: Number(k.days) || 365,
     used: Number(k.used) || 0,
     entDate: k.activated_at || "",
+    usedBy: k.used_by || "",
     role: undefined,
   }));
   res.json(list);
 }));
 
+app.post("/admin/read/deleteKeys", authAdmin, wrap(async (req, res) => {
+  const key = String(req.query.id || "").trim().toUpperCase();
+  if (!key) return res.status(400).json({ message: "Укажите ключ" });
+  await run("DELETE FROM keys WHERE key = ?", [key]);
+  res.json({ success: true, message: "Ключ удалён" });
+}));
+
+app.post("/admin/create/keysHwid", authAdmin, wrap(async (req, res) => {
+  const quantity = Math.min(Math.max(parseInt(req.query.quantity, 10) || 1, 1), 100);
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const generated = [];
+  for (let i = 0; i < quantity; i++) {
+    let key = "VGNC-";
+    for (let g = 0; g < 4; g++) {
+      let part = "";
+      for (let j = 0; j < 4; j++) part += alphabet[crypto.randomInt(alphabet.length)];
+      key += part + (g < 3 ? "-" : "");
+    }
+    try {
+      await run("INSERT INTO hwid_keys (key) VALUES (?)", [key]);
+      generated.push(key);
+    } catch (e) {}
+  }
+  res.json({ success: true, Success: generated, message: "Ключи сгенерированы" });
+}));
+
+app.post("/admin/keysHwid", authAdmin, wrap(async (req, res) => {
+  const quantity = Math.min(Math.max(parseInt(req.query.quantity, 10) || 1, 1), 100);
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const generated = [];
+  for (let i = 0; i < quantity; i++) {
+    let key = "VGNC-";
+    for (let g = 0; g < 4; g++) {
+      let part = "";
+      for (let j = 0; j < 4; j++) part += alphabet[crypto.randomInt(alphabet.length)];
+      key += part + (g < 3 ? "-" : "");
+    }
+    try {
+      await run("INSERT INTO hwid_keys (key) VALUES (?)", [key]);
+      generated.push(key);
+    } catch (e) {}
+  }
+  res.json({ success: true, Success: generated, message: "Ключи сгенерированы" });
+}));
+
 app.post("/admin/give/hwidKeysGet", authAdmin, wrap(async (req, res) => {
-  res.json([]);
+  const keys = await getAll(
+    "SELECT k.key, k.used, k.activated_at, k.days, u.username AS used_by FROM hwid_keys k LEFT JOIN users u ON u.id = k.used_by ORDER BY k.used, k.key"
+  );
+  res.json(
+    keys.map((k) => ({
+      id: k.key,
+      value: k.key,
+      days: Number(k.days) || 365,
+      used: Number(k.used) || 0,
+      entDate: k.activated_at || "",
+      usedBy: k.used_by || "",
+      role: undefined,
+    }))
+  );
+}));
+
+app.post("/admin/read/deleteHwidKeys", authAdmin, wrap(async (req, res) => {
+  const key = String(req.query.id || "").trim().toUpperCase();
+  if (!key) return res.status(400).json({ message: "Укажите ключ" });
+  await run("DELETE FROM hwid_keys WHERE key = ?", [key]);
+  res.json({ success: true, message: "Ключ удалён" });
 }));
 
 app.post("/admin/give/promocode", authAdmin, wrap(async (req, res) => {
@@ -831,19 +930,78 @@ app.post("/admin/give/userProfile", authAdmin, wrap(async (req, res) => {
 }));
 
 app.post("/admin/read/deleteGrant", authAdmin, wrap(async (req, res) => {
-  res.status(403).json({ message: "Действие недоступно" });
+  const promo = String(req.query.promo || "").trim().toUpperCase();
+  if (!promo) return res.status(400).json({ message: "Укажите промокод" });
+  await run("DELETE FROM grants WHERE promo = ?", [promo]);
+  res.json({ success: true, message: "Грант удалён" });
+}));
+
+app.post("/admin/create/grantAccessPromo", authAdmin, wrap(async (req, res) => {
+  const promo = String(req.query.promo || "").trim().toUpperCase();
+  const mediaUid = String(req.query.mediaUid || "").trim();
+  const percent = Number(req.query.percent);
+  if (!promo || !mediaUid)
+    return res.status(400).json({ message: "Укажите промокод и mediaUid" });
+  if (!Number.isFinite(percent) || percent < 0 || percent > 100)
+    return res.status(400).json({ message: "Процент должен быть от 0 до 100" });
+  await run("INSERT INTO grants (promo, media_uid, percent) VALUES (?, ?, ?)", [
+    promo,
+    mediaUid,
+    Math.floor(percent),
+  ]);
+  res.json({ success: true, message: "Доступ выдан" });
+}));
+
+app.post("/admin/read/resetBalancePromo", authAdmin, wrap(async (req, res) => {
+  const promo = String(req.query.promo || "").trim().toUpperCase();
+  if (!promo) return res.status(400).json({ message: "Укажите промокод" });
+  await run("UPDATE promos SET entActive = 0 WHERE value = ?", [promo]);
+  res.json({ success: true, message: "Баланс промокода сброшен" });
+}));
+
+app.post("/admin/read/deleteSub", authAdmin, wrap(async (req, res) => {
+  const username = String(req.query.username || "").trim();
+  if (!username) return res.status(400).json({ message: "Укажите username" });
+  await run("UPDATE users SET sub_end = NULL WHERE username = ?", [username]);
+  res.json({ success: true, message: "Подписка снята" });
+}));
+
+app.post("/admin/create/bannedHwidForId", authAdmin, wrap(async (req, res) => {
+  const id = Number(req.query.id || 0);
+  const user = await getOne("SELECT * FROM users WHERE id = ?", [id]);
+  if (!user) return res.status(404).json({ message: "Пользователь не найден" });
+  if (!user.hwid) return res.status(400).json({ message: "У пользователя нет HWID" });
+  await run("INSERT OR REPLACE INTO banned_hwids (hwid, user_id) VALUES (?, ?)", [user.hwid, user.id]);
+  res.json({ success: true, message: "HWID заблокирован" });
+}));
+
+app.post("/admin/bannedHwidForId", authAdmin, wrap(async (req, res) => {
+  const id = Number(req.query.id || 0);
+  const user = await getOne("SELECT * FROM users WHERE id = ?", [id]);
+  if (!user) return res.status(404).json({ message: "Пользователь не найден" });
+  if (!user.hwid) return res.status(400).json({ message: "У пользователя нет HWID" });
+  await run("INSERT OR REPLACE INTO banned_hwids (hwid, user_id) VALUES (?, ?)", [user.hwid, user.id]);
+  res.json({ success: true, message: "HWID заблокирован" });
+}));
+
+app.post("/admin/read/unbanHwid", authAdmin, wrap(async (req, res) => {
+  const id = Number(req.query.id || 0);
+  const user = await getOne("SELECT * FROM users WHERE id = ?", [id]);
+  if (!user) return res.status(404).json({ message: "Пользователь не найден" });
+  if (user.hwid) await run("DELETE FROM banned_hwids WHERE hwid = ?", [user.hwid]);
+  res.json({ success: true, message: "HWID разблокирован" });
 }));
 
 app.get("/admin/payment/balances", authAdmin, wrap(async (req, res) => {
-  res.status(403).json({ message: "Действие недоступно" });
+  res.json({ success: true, balances: [] });
 }));
 
 app.post("/admin/payment/transactions", authAdmin, wrap(async (req, res) => {
-  res.status(403).json({ message: "Действие недоступно" });
+  res.json({ success: true, transactions: [] });
 }));
 
 app.get("/admin/logs", authAdmin, wrap(async (req, res) => {
-  res.status(403).json({ message: "Действие недоступно" });
+  res.json([]);
 }));
 
 /* fallback */
