@@ -3,7 +3,9 @@ const crypto = require("crypto");
 const net = require("net");
 const tls = require("tls");
 const express = require("express");
-const { createClient } = require("@libsql/client");
+
+const db = require("./db");
+const { getOne, getAll, run, batch, initSchema } = db;
 
 const ROOT = __dirname;
 
@@ -11,151 +13,12 @@ const ALTCHA_SECRET = process.env.ALTCHA_SECRET || "sunless-altcha-secret-2026";
 const ALTCHA_MAX_NUMBER = 100000;
 const FUPAY_OFFER = "https://funpay.com/lots/offer?id=74940528";
 
-function makeClient() {
-  return createClient({
-    url: process.env.TURSO_URL || "file:" + path.join(ROOT, "data.db"),
-    authToken: process.env.TURSO_TOKEN || undefined,
-  });
-}
-
-let client = makeClient();
-
 /* ================= async db helpers ================= */
-
-async function getOne(sql, args) {
-  const r = await dbQuery(sql, args);
-  const row = r.rows[0];
-  if (!row) return null;
-  const obj = {};
-  r.columns.forEach((c, i) => (obj[c] = row[i]));
-  return obj;
-}
-
-async function getAll(sql, args) {
-  const r = await dbQuery(sql, args);
-  return r.rows.map((row) => {
-    const obj = {};
-    r.columns.forEach((c, i) => (obj[c] = row[i]));
-    return obj;
-  });
-}
-
-async function run(sql, args) {
-  const r = await dbQuery(sql, args);
-  return { changes: r.rowsAffected, lastInsertRowid: Number(r.lastInsertRowid || 0) };
-}
 
 /* ================= schema + seed ================= */
 
-let dbReady = null;
-
-async function ensureColumn(sql) {
-  try {
-    await dbQuery(sql, []);
-  } catch (e) {
-    /* column already exists */
-  }
-}
-
-function ensureDb() {
-  if (!dbReady) {
-    dbReady = (async () => {
-      const pragmas = process.env.TURSO_URL
-        ? ""
-        : "PRAGMA journal_mode = WAL;\nPRAGMA busy_timeout = 10000;\n";
-      await withRetry(() => client.executeMultiple(pragmas + `
-CREATE TABLE IF NOT EXISTS users (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  username TEXT NOT NULL UNIQUE,
-  email TEXT NOT NULL UNIQUE,
-  password_hash TEXT NOT NULL,
-  salt TEXT NOT NULL,
-  hwid TEXT DEFAULT '',
-  subscription TEXT DEFAULT 'none',
-  created_at TEXT DEFAULT (datetime('now'))
-);
-CREATE TABLE IF NOT EXISTS sessions (
-  token TEXT PRIMARY KEY,
-  user_id INTEGER NOT NULL,
-  created_at TEXT DEFAULT (datetime('now'))
-);
-CREATE TABLE IF NOT EXISTS keys (
-  key TEXT PRIMARY KEY,
-  used INTEGER DEFAULT 0,
-  used_by INTEGER,
-  activated_at TEXT,
-  days INTEGER DEFAULT 365
-);
-CREATE TABLE IF NOT EXISTS reset_tokens (
-  token TEXT PRIMARY KEY,
-  user_id INTEGER NOT NULL,
-  expires_at TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS promos (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  value TEXT NOT NULL UNIQUE,
-  discount INTEGER DEFAULT 0,
-  outActive INTEGER DEFAULT 1,
-  entActive INTEGER DEFAULT 0,
-  outDate TEXT,
-  days INTEGER DEFAULT 0
-);
-CREATE TABLE IF NOT EXISTS hwid_keys (
-  key TEXT PRIMARY KEY,
-  used INTEGER DEFAULT 0,
-  used_by INTEGER,
-  activated_at TEXT,
-  days INTEGER DEFAULT 365
-);
-CREATE TABLE IF NOT EXISTS grants (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  promo TEXT NOT NULL,
-  media_uid TEXT,
-  percent INTEGER DEFAULT 0,
-  created_at TEXT DEFAULT (datetime('now'))
-);
-CREATE TABLE IF NOT EXISTS banned_hwids (
-  hwid TEXT PRIMARY KEY,
-  user_id INTEGER,
-  created_at TEXT DEFAULT (datetime('now'))
-);
-CREATE TABLE IF NOT EXISTS client_builds (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  size INTEGER NOT NULL DEFAULT 0,
-  beta INTEGER NOT NULL DEFAULT 0,
-  status TEXT NOT NULL DEFAULT 'uploading',
-  username TEXT NOT NULL,
-  created_at TEXT DEFAULT (datetime('now'))
-);
-CREATE TABLE IF NOT EXISTS client_chunks (
-  build_id TEXT NOT NULL,
-  idx INTEGER NOT NULL,
-  data BLOB NOT NULL,
-  PRIMARY KEY (build_id, idx)
-);
-`));
-      await ensureColumn("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'USER'");
-      await ensureColumn("ALTER TABLE users ADD COLUMN sub_end TEXT");
-      await ensureColumn("ALTER TABLE keys ADD COLUMN days INTEGER DEFAULT 365");
-      const count = await getOne("SELECT COUNT(*) AS c FROM keys");
-      if (count && count.c === 0) {
-        const insert = "INSERT INTO keys (key) VALUES (?)";
-        const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-        for (let i = 0; i < 10; i++) {
-          let key = "VGNC-";
-          for (let g = 0; g < 4; g++) {
-            let part = "";
-            for (let j = 0; j < 4; j++) part += alphabet[crypto.randomInt(alphabet.length)];
-            key += part + (g < 3 ? "-" : "");
-          }
-          await withRetry(() => client.execute({ sql: insert, args: [key] }));
-        }
-        console.log("Seeded 10 activation keys");
-      }
-    })();
-  }
-  return dbReady;
+async function ensureDb() {
+  return initSchema();
 }
 
 /* ================= helpers ================= */
@@ -256,27 +119,6 @@ async function sendResetEmail(to, link) {
 function deviceHwid(req) {
   const hwid = String(req.headers["x-hwid"] || "").trim();
   return hwid.length <= 64 ? hwid : "";
-}
-
-async function withRetry(fn, attempts = 3) {
-  for (let i = 1; ; i++) {
-    try {
-      return await fn();
-    } catch (e) {
-      if (i >= attempts) throw e;
-      const msg = String((e && e.message) || "") + " " + String((e && e.cause && e.cause.message) || "");
-      if (!/fetch failed|ECONNRESET|socket hang up|ETIMEDOUT|ECONNREFUSED|network/i.test(msg)) throw e;
-      try {
-        client.close();
-      } catch (e2) {}
-      client = makeClient();
-      await new Promise((r) => setTimeout(r, 300 * i));
-    }
-  }
-}
-
-function dbQuery(sql, args) {
-  return withRetry(() => client.execute({ sql, args: args || [] }));
 }
 
 /* ================= altcha ================= */
@@ -576,7 +418,7 @@ async function activateKeyForUser(req, res, key) {
 
   const statements = [
     {
-      sql: `UPDATE ${table} SET used = 1, used_by = ?, activated_at = datetime('now') WHERE key = ?`,
+      sql: `UPDATE ${table} SET used = 1, used_by = ?, activated_at = CURRENT_TIMESTAMP WHERE key = ?`,
       args: [req.user.id, key],
     },
     { sql: "UPDATE users SET sub_end = ? WHERE id = ?", args: [subEnd.toISOString(), req.user.id] },
@@ -584,7 +426,7 @@ async function activateKeyForUser(req, res, key) {
   if (hwid)
     statements.push({ sql: "UPDATE users SET hwid = ? WHERE id = ?", args: [hwid, req.user.id] });
 
-  await withRetry(() => client.batch(statements, "write"));
+  await batch(statements);
   res.json({ message: "Ключ активирован, подписка продлена" });
 }
 
@@ -1092,7 +934,7 @@ app.post("/admin/create/bannedHwidForId", authAdmin, wrap(async (req, res) => {
   const user = await getOne("SELECT * FROM users WHERE id = ?", [id]);
   if (!user) return res.status(404).json({ message: "Пользователь не найден" });
   if (!user.hwid) return res.status(400).json({ message: "У пользователя нет HWID" });
-  await run("INSERT OR REPLACE INTO banned_hwids (hwid, user_id) VALUES (?, ?)", [user.hwid, user.id]);
+  await run("INSERT INTO banned_hwids (hwid, user_id) VALUES (?, ?) ON CONFLICT(hwid) DO UPDATE SET user_id = excluded.user_id", [user.hwid, user.id]);
   res.json({ success: true, message: "HWID заблокирован" });
 }));
 
@@ -1101,7 +943,7 @@ app.post("/admin/bannedHwidForId", authAdmin, wrap(async (req, res) => {
   const user = await getOne("SELECT * FROM users WHERE id = ?", [id]);
   if (!user) return res.status(404).json({ message: "Пользователь не найден" });
   if (!user.hwid) return res.status(400).json({ message: "У пользователя нет HWID" });
-  await run("INSERT OR REPLACE INTO banned_hwids (hwid, user_id) VALUES (?, ?)", [user.hwid, user.id]);
+  await run("INSERT INTO banned_hwids (hwid, user_id) VALUES (?, ?) ON CONFLICT(hwid) DO UPDATE SET user_id = excluded.user_id", [user.hwid, user.id]);
   res.json({ success: true, message: "HWID заблокирован" });
 }));
 
